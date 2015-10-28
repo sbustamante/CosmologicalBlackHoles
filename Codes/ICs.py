@@ -9,13 +9,23 @@ vc = 10                         # km/s
 
 
 #Duplicating BHs information
-with h5py.File(hdf5_file_name, 'r+') as f:
+with h5py.File(hdf5_file_name, 'a') as f:
     for key in f['PartType5'].keys():
         X = list(f['PartType5'][key][:])
         X = np.array(X+X)
         #Deleting current information
         del f['PartType5'][key]
         dset = f['PartType5'].create_dataset(key, data=X)
+
+    #Modifying Header to include two BH
+    #Number of particles in this
+    Num = f['Header'].attrs['NumPart_ThisFile']
+    Num[5] = 2
+    dset = f['Header'].attrs.create('NumPart_ThisFile', data=Num)
+    #Number of total particles
+    Num = f['Header'].attrs['NumPart_Total']
+    Num[5] = 2
+    dset = f['Header'].attrs.create('NumPart_Total', data=Num)
 
     #Setting new coordinates and velocities (Circular orbit)
     f['PartType5']['Coordinates'][0] = np.array([500+d/2.0,500,500])
