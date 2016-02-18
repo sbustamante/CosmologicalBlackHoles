@@ -11,6 +11,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import collections
 from scipy.spatial import Voronoi
+import matplotlib.path as mplPath
 
 #========================================================================================
 #		OBJECTS
@@ -183,3 +184,20 @@ class voronoifield(object):
 	axes.set_xlim( self.Lx )
 	axes.set_ylim( self.Ly )
 	return axes
+      
+      
+    def contains_points( self, reg, X, Y, **kargs ):
+      	"""
+	Name: contains_points
+	Function: returns whether a set of given positions are within the specified region (2D tessellations)
+	Arguments:
+	    self: voronoifield object
+	    reg: id of region of interest
+	    X: x coordinates
+	    Y: y coordinates
+	    kargs: extra arguments for poly function
+	"""
+	#Creating Path object
+	bbPath = mplPath.Path(self.vertices[self.regions[self.point_region[reg]]])
+	ids = bbPath.contains_points( np.array([X, Y]).T )
+	return X[ids], Y[ids]
