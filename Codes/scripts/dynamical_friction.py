@@ -8,6 +8,7 @@
 #========================================================================================
 import numpy as np
 from scipy import integrate as integ
+import h5py
 
 
 #========================================================================================
@@ -191,8 +192,10 @@ class black_hole(object):
 	self.vt = [self.v]
 	self.time = [self.t]
 	
+	
     def f_evol( self, r, v, t ):
 	return np.array([np.array(v), np.array(self.force( r, v, t ))])
+	
 	
     def time_step( self, dt, scheme='rk4' ):
 	if scheme == 'rk4':
@@ -207,3 +210,49 @@ class black_hole(object):
 	self.vt.append( self.v )
 	self.time.append( self.t )
 	
+	
+#========================================================================================
+#		BH_SIMULATED
+#========================================================================================
+class black_hole_sim(object):
+    """black hole sim
+    
+    Class of simulated black holes
+    
+    Attributes
+    ----------
+    simulation : name of simulation
+    snapbase : snap base 
+    n_snap : number of snapshots
+    units : dictionary with units to be used (transformed from SI). 
+	   Default: M [1e10 Msun]  L [kpc]  T [Gyr]  V [km/s]
+    kargs : extra arguments
+    """
+    def __init__( self, simulation, snapbase, n_snap, units = unitsstd, kargs={} ):
+	self.simulation = simulation
+	self.snapbase = snapbase
+	self.n_snap = n_snap
+	
+	self.units = units
+	self.kargs = kargs
+	
+	#Units
+	self.GC = GC*self.units['M']*self.units['T']**2/self.units['L']**3
+	self.Vf = self.units['V']*self.units['T']/self.units['L']
+	
+    
+    def read_trajectory( self ):
+	#snap function
+	filename = lambda snap : '%s/output/%s_%03d.hdf5'%( self.simulation, self.snapbase, snap )
+	#Reading position
+	self.r = []
+	self.t = []
+	for i in xrange( self.n_snap ):
+	    datafile = h5py.File(filename(i), 'r')
+	    try:
+	      self.r.append( datafile['PartType5']['Coordinates'][0] )
+	      self.t.append( datafile['Header'].attrs['Time'] )
+	    except:
+	      None
+	self.r = np.array(self.r)
+	self.t = np.array(self.t)
