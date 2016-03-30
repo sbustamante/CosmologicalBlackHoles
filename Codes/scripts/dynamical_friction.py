@@ -244,15 +244,18 @@ class black_hole_sim(object):
     def read_trajectory( self ):
 	#snap function
 	filename = lambda snap : '%s/output/%s_%03d.hdf5'%( self.simulation, self.snapbase, snap )
-	#Reading position
+	#Reading position and velocity
 	self.r = []
+	self.v = []
 	self.t = []
 	for i in xrange( self.n_snap ):
 	    datafile = h5py.File(filename(i), 'r')
 	    try:
 	      self.r.append( datafile['PartType5']['Coordinates'][0] )
+	      self.v.append( datafile['PartType5']['Velocities'][0] )
 	      self.t.append( datafile['Header'].attrs['Time'] )
 	    except:
 	      None
 	self.r = np.array(self.r)
+	self.v = np.array(self.v)
 	self.t = np.array(self.t)
