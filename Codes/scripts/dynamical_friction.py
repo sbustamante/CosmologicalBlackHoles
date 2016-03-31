@@ -228,10 +228,11 @@ class black_hole_sim(object):
 	   Default: M [1e10 Msun]  L [kpc]  T [Gyr]  V [km/s]
     kargs : extra arguments
     """
-    def __init__( self, simulation, snapbase, n_snap, units = unitsstd, kargs={} ):
+    def __init__( self, simulation, snapbase, n_snap, center = [0,0,0],units = unitsstd, kargs={} ):
 	self.simulation = simulation
 	self.snapbase = snapbase
 	self.n_snap = n_snap
+	self.center = np.array(center)
 	
 	self.units = units
 	self.kargs = kargs
@@ -241,7 +242,7 @@ class black_hole_sim(object):
 	self.Vf = self.units['V']*self.units['T']/self.units['L']
 	
     
-    def read_trajectory( self ):
+    def read_trajectory( self, pot_center = False ):
 	#snap function
 	filename = lambda snap : '%s/output/%s_%03d.hdf5'%( self.simulation, self.snapbase, snap )
 	#Reading position and velocity
@@ -250,12 +251,15 @@ class black_hole_sim(object):
 	self.t = []
 	for i in xrange( self.n_snap ):
 	    datafile = h5py.File(filename(i), 'r')
-	    try:
-	      self.r.append( datafile['PartType5']['Coordinates'][0] )
-	      self.v.append( datafile['PartType5']['Velocities'][0] )
-	      self.t.append( datafile['Header'].attrs['Time'] )
-	    except:
-	      None
+
+	    if pot_center:
+		i_min = np.argsort( datafile['PartType1']['Potential'] )[0]
+		self.center = datafile['PartType1']['Coordinates'][i_min]
+			    
+	    self.r.append( datafile['PartType5']['Coordinates'][0] - self.center )
+	    self.v.append( datafile['PartType5']['Velocities'][0] )
+	    self.t.append( datafile['Header'].attrs['Time'] )
+
 	self.r = np.array(self.r)
 	self.v = np.array(self.v)
 	self.t = np.array(self.t)
