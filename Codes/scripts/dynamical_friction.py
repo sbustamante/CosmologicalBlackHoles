@@ -267,9 +267,9 @@ class black_hole_sim(object):
 	
     def load_trajectory( self, folder, pot_center = False ):
 	if pot_center:
-	    data = np.loadtxt( "%s/BH_%s_p.dat" )
+	    data = np.loadtxt( "%s/BH_%s_p.dat"%(folder, self.simulation) )
 	else:
-	    data = np.loadtxt( "%s/BH_%s_g.dat" )
+	    data = np.loadtxt( "%s/BH_%s_g.dat"%(folder, self.simulation) )
 
 	self.r = data[:,[1,2,3]]
 	self.t = data[:,0]
