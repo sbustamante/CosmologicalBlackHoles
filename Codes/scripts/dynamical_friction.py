@@ -16,7 +16,7 @@ import h5py
 #========================================================================================
 #Cavendish constant [SI]
 GC	=	6.67384e-11
-#Standar units
+#Standard units
 unitsstd = {'M':1.989e40, 'L':3.08568e19, 'T':3.15569e16, 'V':1000. }
 
 
@@ -116,10 +116,11 @@ class hernquist_sphere(object):
 	"""
 	#Extracting arguments
 	self.Mb = self.kargs['Mb']
-	self.bmax = self.kargs['bmax']
-	self.bmin = self.kargs['bmin']
 	#Coulomb Logarithm
-	self.LogL = np.log( self.bmax/self.bmin )
+	self.LogL = lambda bmin, bmax:  np.log( bmax/bmin )
+	#Calculating minimum and maximum impact parameters
+	self.bmin = lambda v: np.max( [ 2*self.GC*self.Mb/(3.0e5*self.Vf)**2, self.GC*self.Mb/(v*self.Vf)**2 ] ) #Tremmel 2015
+	self.bmax = lambda r: r*(r + self.a)/( 4*r + self.a ) #Just, et al. 2011
 	
 	#Norm of input vectors
 	rm = np.linalg.norm( r )
@@ -130,7 +131,7 @@ class hernquist_sphere(object):
 	else:
 	    rho_slow = integ.quad( lambda vl: vl**2*self.distribution_function( rm, self.v_escape( rm )*self.Vf ), 0, vm )[0]
 	#Dynamical friction
-	a_dyn = -16*self.GC**2*np.pi**2*self.Mb*self.LogL*rho_slow*np.array(v)/vm**3
+	a_dyn = -16*self.GC**2*np.pi**2*self.Mb*self.LogL( self.bmin(vm), self.bmax(rm) )*rho_slow*np.array(v)/vm**3
 
 	return a_dyn
 
@@ -224,16 +225,21 @@ class black_hole_sim(object):
     simulation : name of simulation
     snapbase : snap base 
     n_snap : number of snapshots
+    datafolder : folder where simulations are stored
+    resultsfolder : folder where trajectories will be stored
+    center: center of the simulation
     units : dictionary with units to be used (transformed from SI). 
 	   Default: M [1e10 Msun]  L [kpc]  T [Gyr]  V [km/s]
     kargs : extra arguments
     """
-    def __init__( self, simulation, snapbase, n_snap, center = [0,0,0],units = unitsstd, kargs={} ):
+    def __init__( self, simulation, snapbase, n_snap, datafolder, resultsfolder, center = [0,0,0], units = unitsstd, kargs={} ):
 	self.simulation = simulation
 	self.snapbase = snapbase
 	self.n_snap = n_snap
-	self.center = np.array(center)
+	self.datafolder = datafolder
+	self.resultsfolder = resultsfolder
 	
+	self.center = np.array(center)	
 	self.units = units
 	self.kargs = kargs
 	
@@ -242,34 +248,81 @@ class black_hole_sim(object):
 	self.Vf = self.units['V']*self.units['T']/self.units['L']
 	
     
-    def read_trajectory( self, pot_center = False ):
-	#snap function
-	filename = lambda snap : '%s/output/%s_%03d.hdf5'%( self.simulation, self.snapbase, snap )
-	#Reading position and velocity
+    def read_trajectory( self, total_energy = False ):
+	#Snap function
+	filename = lambda snap : '%s/%s/output/%s_%03d.hdf5'%( self.datafolder, self.simulation, self.snapbase, snap )
+	#Initializing position and velocity
 	self.r = []
 	self.v = []
+	self.r_mp = []
+	self.v_mp = []
 	self.t = []
 	for i in xrange( self.n_snap ):
 	    datafile = h5py.File(filename(i), 'r')
-
-	    if pot_center:
-		i_min = np.argsort( datafile['PartType1']['Potential'] )[0]
-		self.center = datafile['PartType1']['Coordinates'][i_min]
-			    
+	    #Reading information of minimum of potential
+	    i_min = np.argsort( datafile['PartType1']['Potential'] + total_energy*0.5*np.linalg.norm(datafile['PartType1']['Velocities'], axis=1) )[0]
+	    self.r_mp.append( datafile['PartType1']['Coordinates'][i_min] - self.center )
+	    self.v_mp.append( datafile['PartType1']['Velocities'][i_min] )
+	    #Reading information of black hole trajectory
 	    self.r.append( datafile['PartType5']['Coordinates'][0] - self.center )
 	    self.v.append( datafile['PartType5']['Velocities'][0] )
 	    self.t.append( datafile['Header'].attrs['Time'] )
 
-	self.r = np.array(self.r)
-	self.v = np.array(self.v)
+	self.r = np.array( self.r )
+	self.rm = np.linalg.norm( self.r, axis=1 )
+	self.v = np.array( self.v )
+	self.vm = np.linalg.norm( self.v, axis=1 )
+	
+	self.r_mp = np.array( self.r_mp )
+	self.rm_mp = np.linalg.norm( self.r_mp, axis=1 )
+	self.v_mp = np.array( self.v_mp )
+	self.vm_mp = np.linalg.norm( self.v_mp, axis=1 )
+	
 	self.t = np.array(self.t)
+	#Centralizing trajectory
+	self.centralization( )
+	#Saving trajectory
+	self.save_trajectory( )
 	
 	
-    def load_trajectory( self, folder, pot_center = False ):
-	if pot_center:
-	    data = np.loadtxt( "%s/BH_%s_p.dat"%(folder, self.simulation) )
-	else:
-	    data = np.loadtxt( "%s/BH_%s_g.dat"%(folder, self.simulation) )
+    def centralization( self ):
+	#This function centralizes the trajectory of the BH with respect to the minimum of the potential
+	self.r_c = self.r - self.r_mp
+	self.rm_c = np.linalg.norm( self.r_c, axis=1 )
+	self.v_c = self.v - self.v_mp
+	self.vm_c = np.linalg.norm( self.v_c, axis=1 )
+	
 
-	self.r = data[:,[1,2,3]]
+    def save_trajectory( self ):
+	#Saving data from BH and minimum of potential
+	data = np.transpose( [ self.t,
+	self.r[:,0], self.r[:,1], self.r[:,2], self.rm,
+	self.v[:,0], self.v[:,1], self.v[:,2], self.vm,
+	self.r_mp[:,0], self.r_mp[:,1], self.r_mp[:,2], self.rm_mp,
+	self.v_mp[:,0], self.v_mp[:,1], self.v_mp[:,2], self.vm_mp ] )
+	
+	np.savetxt( "%s/BH_%s.dat"%(self.resultsfolder, self.simulation), data )
+	
+	
+    def load_trajectory( self ):
+	data = np.loadtxt( "%s/BH_%s.dat"%(self.resultsfolder, self.simulation) )
+
 	self.t = data[:,0]
+	
+	self.r = data[:,[1,2,3]]
+	self.rm = data[:,4]
+	self.v = data[:,[5,6,7]]
+	self.vm = data[:,8]
+	
+	self.r_mp = data[:,[9,10,11]]
+	self.rm_mp = data[:,12]
+	self.v_mp = data[:,[13,14,15]]
+	self.vm_mp = data[:,16]
+	
+	#Centralizing trajectory
+	self.centralization( )
+	
+	
+    def noise_filter( self ):
+	#Function that filters noisy points using numerical estimative
+	
