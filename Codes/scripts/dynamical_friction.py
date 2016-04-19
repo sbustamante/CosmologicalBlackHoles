@@ -35,8 +35,22 @@ def RK4_step( f, r, v, t, dt ):
 
     #Returning solution
     return np.array([rf, vf])
-    
+  
+  
+#Numerical derivative
+def RK4_step( f, r, v, t, dt ):
+    #Creating solutions
+    K0r, K0v = f( r, v, t )
+    K1r, K1v = f( r + 0.5*dt*K0r, v + 0.5*dt*K0v, t + 0.5*dt )
+    K2r, K2v = f( r + 0.5*dt*K1r, v + 0.5*dt*K1v, t + 0.5*dt )
+    K3r, K3v = f( r + dt*K2r, v + dt*K2v, t + dt )
+    rf = np.array(r + dt/6.0*( K0r + 2*K1r + 2*K2r + K3r ))
+    vf = np.array(v + dt/6.0*( K0v + 2*K1v + 2*K2v + K3v ))
 
+    #Returning solution
+    return np.array([rf, vf])
+    
+    
 #========================================================================================
 #		INTERACTIONS
 #========================================================================================
@@ -132,7 +146,7 @@ class hernquist_sphere(object):
 	    rho_slow = integ.quad( lambda vl: vl**2*self.distribution_function( rm, self.v_escape( rm )*self.Vf ), 0, vm )[0]
 	#Dynamical friction
 	a_dyn = -16*self.GC**2*np.pi**2*self.Mb*self.LogL( self.bmin(vm), self.bmax(rm) )*rho_slow*np.array(v)/vm**3
-
+	
 	return a_dyn
 
 
@@ -259,8 +273,12 @@ class black_hole_sim(object):
 	self.t = []
 	for i in xrange( self.n_snap ):
 	    datafile = h5py.File(filename(i), 'r')
+	    #Calculating potential vector due to central BH
+	    dist = np.linalg.norm( datafile['PartType1']['Coordinates'] - datafile['PartType5']['Coordinates'][0], axis=1 )
+	    potBH = -self.GC*data['PartType5']['Masses'][0]/dist
+	    
 	    #Reading information of minimum of potential
-	    i_min = np.argsort( datafile['PartType1']['Potential'] + total_energy*0.5*np.linalg.norm(datafile['PartType1']['Velocities'], axis=1) )[0]
+	    i_min = np.argsort( datafile['PartType1']['Potential'] + total_energy*0.5*np.linalg.norm(datafile['PartType1']['Velocities'], axis=1) - potBH )[0]
 	    self.r_mp.append( datafile['PartType1']['Coordinates'][i_min] - self.center )
 	    self.v_mp.append( datafile['PartType1']['Velocities'][i_min] )
 	    #Reading information of black hole trajectory
@@ -325,4 +343,4 @@ class black_hole_sim(object):
 	
     def noise_filter( self ):
 	#Function that filters noisy points using numerical estimative
-	
+	None
