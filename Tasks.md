@@ -1,15 +1,16 @@
-#Table of Simulations
-
-**R** : run
-**O** : ongoing
-**P** : pending
-
-| Name                             | Description 										      | Status |
-| -------------------------------- | ------------------------------------------------------------------------------------------------ | ------ |
-| isolated_galaxy_fix_BH           | Simulation of isolated galaxy with fixed MBH (attached to minimum potential)		      | R      |
-| isolated_galaxy_free_BH          | Simulation of isolated galaxy with free MBH				 		      | R      |
-| isolated_galaxy_binary_BH        | Simulation of isolated galaxy with two central BHs				 		      | O      |
-| isolated_galaxy_kick_BH_01       | Simulation of isolated galaxy with free MBH and with initial velocity	 		      | P      |
-| galaxy_merger_fix_BH		   | Simulation of galaxy merger with fixed MBH (attached to minimum potential)			      | P      |
+#Tasks
 
 
+1. Compile other methods for treating dynamical friction in simulations. (Test them?)
+
+2. Understand and write an own example of a non-linear least squared fitting for the potential.
+
+3. Study Arepo in a structured way. Understanding the basics of its functioning.
+
+4. Run isolated simulations of dark matter and test friction treatments for different resolutions. (Tunning to obtain robust resoluts with the resolution).
+
+5. Run more realistic simulations of isolated galaxies with gas and mergers of galaxies. Test DF approach with high resolution runs.
+
+6. Run a cosmological simulation with the improved DF treatment.
+
+7. Run zoom-in simulations from the previous cosmological simulations with high resolution and compare if the obtained results keep valid.
