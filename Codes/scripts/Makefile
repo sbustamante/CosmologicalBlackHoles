@@ -1,15 +1,13 @@
-CC          = gcc
-CFLAGS      = 
-LIB         = -lhdf5_hl -lhdf5 -lz -lm 
+CC=gcc
+CFLAGS = -Wall -I/home/bustamsn/Software/gsl-2.1/include
+LDFLAGS = -L/home/bustamsn/Software/gsl-2.1/lib
+LIBS= -lm -lgsl -lgslcblas
+SOURCES=main.c
+OBJECTS= main.o
+EXECUTABLE=main
 
-INCHDF5   = -I/usr/local/include/ -I/home/bustamsn/Software/hdf5-1.8.10/include
-LIBHDF5   = -L/usr/local/lib/ 
-
-all: NLLSF
-     
-NLLSF: NLLSF.c
-	$(CC) $(CFLAGS) -o $@ NLLSF.c $(INCHDF5) $(LIBHDF5) $(LIB)
-
-clean: 
-	rm -f *.h5 *.o \
-        h5_rdwt 
+$(EXECUTABLE): $(OBJECTS)
+	$(CC) $(LDFLAGS) $(OBJECTS) $(LIBS) -o $(EXECUTABLE)
+	
+clean:
+	rm -f $(OBJECTS) $(EXECUTABLE)

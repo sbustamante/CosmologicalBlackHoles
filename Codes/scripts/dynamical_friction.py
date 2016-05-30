@@ -49,6 +49,21 @@ def RK4_step( f, r, v, t, dt ):
 
     #Returning solution
     return np.array([rf, vf])
+  
+  
+#Function to load coordinates and potential from a snapshot
+def snapshot_reader( datafolder, simulation, snap, snapbase = 'snapshot', parttype = 1 ):
+  
+    filename = lambda snap : '%s/%s/output/%s_%03d.hdf5'%( datafolder, simulation, snapbase, snap )
+    datafile = h5py.File(filename(snap), 'r')
+    #Calculating potential vector due to central BH
+    coordinates = datafile['PartType%d'%(parttype)]['Coordinates']
+    potential = datafile['PartType%d'%(parttype)]['Potential']
+      
+    #Finding ID of most bounded particle
+    id_bound = np.argsort( potential )[0]
+      
+    return np.array(coordinates), np.array(potential), id_bound
     
     
 #========================================================================================
@@ -275,7 +290,7 @@ class black_hole_sim(object):
 	    datafile = h5py.File(filename(i), 'r')
 	    #Calculating potential vector due to central BH
 	    dist = np.linalg.norm( datafile['PartType1']['Coordinates'] - datafile['PartType5']['Coordinates'][0], axis=1 )
-	    potBH = -self.GC*data['PartType5']['Masses'][0]/dist
+	    potBH = -self.GC*datafile['PartType5']['Masses'][0]/dist
 	    
 	    #Reading information of minimum of potential
 	    i_min = np.argsort( datafile['PartType1']['Potential'] + total_energy*0.5*np.linalg.norm(datafile['PartType1']['Velocities'], axis=1) - potBH )[0]
