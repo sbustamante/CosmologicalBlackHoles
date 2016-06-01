@@ -10,6 +10,7 @@ import numpy as np
 from scipy import integrate as integ
 import h5py
 
+execfile( './scripts/fitool.py' )
 
 #========================================================================================
 #		GLOBAL VARIABLES
@@ -52,20 +53,32 @@ def RK4_step( f, r, v, t, dt ):
   
   
 #Function to load coordinates and potential from a snapshot
-def snapshot_reader( datafolder, simulation, snap, snapbase = 'snapshot', parttype = 1 ):
+def snapshot_reader( datafolder, simulation, snap, snapbase = 'snapshot', parttype = 1, BH_offset = False, units = unitsstd ):
   
     filename = lambda snap : '%s/%s/output/%s_%03d.hdf5'%( datafolder, simulation, snapbase, snap )
     datafile = h5py.File(filename(snap), 'r')
     #Calculating potential vector due to central BH
     coordinates = datafile['PartType%d'%(parttype)]['Coordinates']
     potential = datafile['PartType%d'%(parttype)]['Potential']
+
+    r_mp = []
+    if BH_offset:
+        #Units
+	GCl = GC*units['M']*units['T']**2/units['L']**3
+	#Potential of BH
+	dist = np.linalg.norm( coordinates - datafile['PartType5']['Coordinates'][0], axis=1 )
+	potBH = -GCl*datafile['PartType5']['Masses'][0]/dist
+	#Reading information of minimum of potential
+	i_min = np.argsort( potential - potBH )[0]
+	r_mp = coordinates[i_min]
+	potential = np.array(potential)-potBH
       
     #Finding ID of most bounded particle
     id_bound = np.argsort( potential )[0]
-      
-    return np.array(coordinates), np.array(potential), id_bound
     
-    
+    return np.array(coordinates), np.array(potential), id_bound, r_mp, datafile['PartType5']['Coordinates'][0]
+  
+  
 #========================================================================================
 #		INTERACTIONS
 #========================================================================================
@@ -324,7 +337,13 @@ class black_hole_sim(object):
 	self.rm_c = np.linalg.norm( self.r_c, axis=1 )
 	self.v_c = self.v - self.v_mp
 	self.vm_c = np.linalg.norm( self.v_c, axis=1 )
+
 	
+    def centralization_fit( self ):
+	#This function centralizes the trajectory of the BH with respect to the fitted minimum of the potential
+	self.r_c = self.r - self.r_mp_fit
+	self.rm_c = np.linalg.norm( self.r_c, axis=1 )
+
 
     def save_trajectory( self ):
 	#Saving data from BH and minimum of potential
@@ -352,10 +371,70 @@ class black_hole_sim(object):
 	self.v_mp = data[:,[13,14,15]]
 	self.vm_mp = data[:,16]
 	
-	#Centralizing trajectory
-	self.centralization( )
+	try:
+	    self.r_mp_fit = np.loadtxt( "%s/BH_%s_fit.dat"%(self.resultsfolder, self.simulation) )
+	except:
+	    None
 	
 	
-    def noise_filter( self ):
-	#Function that filters noisy points using numerical estimative
-	None
+    def fitted_potential_minimum( self, BH_offset = False, Nbins = 30, Distance = 3 ):
+	#Function to track orbit of potential minimum
+    
+	#Fitting Function
+	def function( x, args ):
+	    A = args[0]
+	    B = args[1]
+	    C = args[2]
+	    return A*x**2 + B*x + C
+	
+	#Looping throughout all snapshots
+	self.contours = [] 
+	self.r_mp_fit = []
+	self.opt_args = []
+	for snap in xrange(self.n_snap):
+	    CoordinatesC, PotentialC, id_boundC, r_mpC, r_bhC = snapshot_reader( self.datafolder, self.simulation, snap, BH_offset = True )
+	    #Filtering particles closer to the box's center
+	    CenterC = CoordinatesC[id_boundC]
+	    #Distance from most bounded particle
+	    Distance = 3
+	    #Properties
+	    mask = np.linalg.norm( CoordinatesC - 1*CenterC, axis=1 ) <= Distance
+	    CoordClsC = CoordinatesC[mask]
+	    PotClsC = PotentialC[mask]
+	    #Finding most bounded particles delimiting potential in every projection
+	    RpsC = []
+	    PpsC = []
+	    for ip in xrange(3):
+		#Building grid
+		R = []
+		P = []
+		for ig in xrange(Nbins):
+		    coords_shift = CoordClsC[:,ip]-(CenterC[ip]-Distance)
+		    mask = (2.0*ig*Distance/Nbins <= coords_shift)*(coords_shift < 2.0*(ig+1)*Distance/Nbins)
+		    try:
+			id_min = np.argsort(PotClsC[mask])[0]
+			R.append( CoordClsC[mask][id_min,ip] )
+			P.append( PotClsC[mask].min() )
+		    except:
+			None
+		R = np.array( R )
+		P = np.array( P )
+		RpsC.append( R )
+		PpsC.append( P )
+	    RpsC = np.array( RpsC )
+	    PpsC = np.array( PpsC )
+	    #Fitting every projection
+	    r_mpOpt = []
+	    OptArgs = []
+	    for ip in xrange(3):
+		OptArg = fit(RpsC[ip], PpsC[ip],function,[1076.,-538000,67000000]) 
+		OptArgs.append( OptArg )
+		r_mpOpt.append(-OptArg[1]/(2*OptArg[0]))
+	    r_mpOpt = np.array(r_mpOpt) - self.center
+	    self.contours.append( [RpsC.T  - self.center,PpsC] )
+	    self.r_mp_fit.append( r_mpOpt )
+	    self.opt_args.append( OptArgs )
+	self.contours = np.array( self.contours )
+	self.r_mp_fit = np.array( self.r_mp_fit )
+	self.opt_args = np.array( self.opt_args )
+	np.savetxt( "%s/BH_%s_fit.dat"%(self.resultsfolder, self.simulation), self.r_mp_fit )
