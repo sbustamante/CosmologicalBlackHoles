@@ -8,6 +8,7 @@
 #========================================================================================
 import numpy as np
 from scipy import integrate as integ
+from scipy.optimize import curve_fit
 import h5py
 
 execfile( './scripts/fitool.py' )
@@ -76,7 +77,10 @@ def snapshot_reader( datafolder, simulation, snap, snapbase = 'snapshot', partty
     #Finding ID of most bounded particle
     id_bound = np.argsort( potential )[0]
     
-    return np.array(coordinates), np.array(potential), id_bound, r_mp, datafile['PartType5']['Coordinates'][0]
+    try:
+	return np.array(coordinates), np.array(potential), id_bound, r_mp, datafile['PartType5']['Coordinates'][0]
+    except:
+	return np.array(coordinates), np.array(potential), id_bound, r_mp, []
   
   
 #========================================================================================
@@ -341,8 +345,8 @@ class black_hole_sim(object):
 	
     def centralization_fit( self ):
 	#This function centralizes the trajectory of the BH with respect to the fitted minimum of the potential
-	self.r_c = self.r - self.r_mp_fit
-	self.rm_c = np.linalg.norm( self.r_c, axis=1 )
+	self.r_cf = self.r - self.r_mp_fit
+	self.rm_cf = np.linalg.norm( self.r_cf, axis=1 )
 
 
     def save_trajectory( self ):
@@ -356,7 +360,7 @@ class black_hole_sim(object):
 	np.savetxt( "%s/BH_%s.dat"%(self.resultsfolder, self.simulation), data )
 	
 	
-    def load_trajectory( self ):
+    def load_trajectory( self, Distance = 3 ):
 	data = np.loadtxt( "%s/BH_%s.dat"%(self.resultsfolder, self.simulation) )
 
 	self.t = data[:,0]
@@ -372,13 +376,25 @@ class black_hole_sim(object):
 	self.vm_mp = data[:,16]
 	
 	try:
-	    self.r_mp_fit = np.loadtxt( "%s/BH_%s_fit.dat"%(self.resultsfolder, self.simulation) )
+	    self.r_mp_fit = np.loadtxt( "%s/BH_%s_fit_%1.3f.dat"%(self.resultsfolder, self.simulation, Distance) )
+	except:
+	    None
+	    
+	try:
+	    self.r_mp_fit_no = np.loadtxt( "%s/BH_%s_fit_no_%1.3f.dat"%(self.resultsfolder, self.simulation, Distance) )
+	except:
+	    None
+	    
+	try:
+	    self.r_mp_3Dfit = np.loadtxt( "%s/BH_%s_3Dfit.dat"%(self.resultsfolder, self.simulation) )
 	except:
 	    None
 	
 	
     def fitted_potential_minimum( self, BH_offset = False, Nbins = 30, Distance = 3 ):
 	#Function to track orbit of potential minimum
+    
+    	filename = lambda snap : '%s/%s/output/%s_%03d.hdf5'%( self.datafolder, self.simulation, self.snapbase, snap )
     
 	#Fitting Function
 	def function( x, args ):
@@ -391,8 +407,13 @@ class black_hole_sim(object):
 	self.contours = [] 
 	self.r_mp_fit = []
 	self.opt_args = []
+	self.t = []
+
 	for snap in xrange(self.n_snap):
-	    CoordinatesC, PotentialC, id_boundC, r_mpC, r_bhC = snapshot_reader( self.datafolder, self.simulation, snap, BH_offset = True )
+	    CoordinatesC, PotentialC, id_boundC, r_mpC, r_bhC = snapshot_reader( self.datafolder, self.simulation, snap, BH_offset=BH_offset )
+
+	    datafile = h5py.File(filename(snap), 'r')
+	    self.t.append( datafile['Header'].attrs['Time'] )
 	    #Filtering particles closer to the box's center
 	    CenterC = CoordinatesC[id_boundC]
 	    #Distance from most bounded particle
@@ -437,4 +458,42 @@ class black_hole_sim(object):
 	self.contours = np.array( self.contours )
 	self.r_mp_fit = np.array( self.r_mp_fit )
 	self.opt_args = np.array( self.opt_args )
-	np.savetxt( "%s/BH_%s_fit.dat"%(self.resultsfolder, self.simulation), self.r_mp_fit )
+	self.t = np.array(self.t)
+
+	if BH_offset:
+	    np.savetxt( "%s/BH_%s_fit_%1.3f.dat"%(self.resultsfolder, self.simulation, Distance ), self.r_mp_fit )
+	else:
+	    np.savetxt( "%s/BH_%s_fit_no_%1.3f.dat"%(self.resultsfolder, self.simulation, Distance ), self.r_mp_fit )
+	
+	
+    def fitted_potential_minimum3D( self, BH_offset = False, Distance = 3 ):
+	#Function to track orbit of potential minimum
+    
+	#Fitting Function
+	def fitFunc(x, a, x0, x1, x2, y0):
+	    return a*( (x[0]-x0)**2 + (x[1]-x1)**2 + (x[2]-x2)**2 ) + y0
+	
+	#Looping throughout all snapshots
+	self.r_mp_fit = []
+	for snap in xrange(self.n_snap):
+	    CoordinatesC, PotentialC, id_boundC, r_mpC, r_bhC = snapshot_reader( self.datafolder, self.simulation, snap, BH_offset=BH_offset )
+	    #Filtering particles closer to the box's center
+	    CenterC = CoordinatesC[id_boundC]
+	    #Distance from most bounded particle
+	    Distance = 3
+	    #Properties
+	    mask = np.linalg.norm( CoordinatesC - 1*CenterC, axis=1 ) <= Distance
+	    CoordClsC = CoordinatesC[mask]
+	    PotClsC = PotentialC[mask]
+	    fitParams, fitCovariances = curve_fit(fitFunc, CoordClsC.T, PotClsC, [ 1076., 250., 250., 250., -210000 ])
+
+	    self.r_mp_fit.append( fitParams[1:4] - self.center )
+	    
+	self.r_mp_fit = np.array( self.r_mp_fit )
+	np.savetxt( "%s/BH_%s_3Dfit.dat"%(self.resultsfolder, self.simulation), self.r_mp_fit )
+	
+	
+	
+	
+
+
