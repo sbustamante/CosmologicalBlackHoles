@@ -322,7 +322,7 @@ class black_hole_sim(object):
 	    self.v.append( datafile['PartType5']['Velocities'][0] )
 	    self.t.append( datafile['Header'].attrs['Time'] )
 	    try:
-		self.a.append( datafile['Header'].attrs['BH_SpinParameter'] )
+		self.a.append( datafile['PartType5'].attrs['BH_SpinParameter'] )
 	    except:
 		self.a.append( 0 )
 
