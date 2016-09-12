@@ -323,7 +323,7 @@ class black_hole_sim(object):
 	    self.t.append( datafile['Header'].attrs['Time'] )
 	    try:
 		self.a.append( datafile['Header'].attrs['BH_SpinParameter'] )
-	    except
+	    except:
 		self.a.append( 0 )
 
 	self.r = np.array( self.r )
