@@ -11,7 +11,10 @@ from scipy import integrate as integ
 from scipy.optimize import curve_fit
 import h5py
 
-execfile( './scripts/fitool.py' )
+try:
+    execfile( './scripts/fitool.py' )
+except:
+    None
 
 #========================================================================================
 #		GLOBAL VARIABLES
@@ -303,6 +306,7 @@ class black_hole_sim(object):
 	self.r_mp = []
 	self.v_mp = []
 	self.t = []
+	self.a = []
 	for i in xrange( self.n_snap ):
 	    datafile = h5py.File(filename(i), 'r')
 	    #Calculating potential vector due to central BH
@@ -317,6 +321,10 @@ class black_hole_sim(object):
 	    self.r.append( datafile['PartType5']['Coordinates'][0] - self.center )
 	    self.v.append( datafile['PartType5']['Velocities'][0] )
 	    self.t.append( datafile['Header'].attrs['Time'] )
+	    try:
+		self.a.append( datafile['Header'].attrs['BH_SpinParameter'] )
+	    except
+		self.a.append( 0 )
 
 	self.r = np.array( self.r )
 	self.rm = np.linalg.norm( self.r, axis=1 )
@@ -327,6 +335,8 @@ class black_hole_sim(object):
 	self.rm_mp = np.linalg.norm( self.r_mp, axis=1 )
 	self.v_mp = np.array( self.v_mp )
 	self.vm_mp = np.linalg.norm( self.v_mp, axis=1 )
+	#Reading spin	
+	self.a = np.array( self.a )
 	
 	self.t = np.array(self.t)
 	#Centralizing trajectory
@@ -355,7 +365,7 @@ class black_hole_sim(object):
 	self.r[:,0], self.r[:,1], self.r[:,2], self.rm,
 	self.v[:,0], self.v[:,1], self.v[:,2], self.vm,
 	self.r_mp[:,0], self.r_mp[:,1], self.r_mp[:,2], self.rm_mp,
-	self.v_mp[:,0], self.v_mp[:,1], self.v_mp[:,2], self.vm_mp ] )
+	self.v_mp[:,0], self.v_mp[:,1], self.v_mp[:,2], self.vm_mp, self.a ] )
 	
 	np.savetxt( "%s/BH_%s.dat"%(self.resultsfolder, self.simulation), data )
 	
@@ -374,6 +384,7 @@ class black_hole_sim(object):
 	self.rm_mp = data[:,12]
 	self.v_mp = data[:,[13,14,15]]
 	self.vm_mp = data[:,16]
+	self.a = data[:,17]
 	
 	try:
 	    self.r_mp_fit = np.loadtxt( "%s/BH_%s_fit_%1.3f.dat"%(self.resultsfolder, self.simulation, Distance) )
@@ -491,9 +502,3 @@ class black_hole_sim(object):
 	    
 	self.r_mp_fit = np.array( self.r_mp_fit )
 	np.savetxt( "%s/BH_%s_3Dfit.dat"%(self.resultsfolder, self.simulation), self.r_mp_fit )
-	
-	
-	
-	
-
-
