@@ -67,8 +67,8 @@ def snapshot_reader( datafolder, simulation, snap, snapbase = 'snapshot', partty
         #Units
 	GCl = GC*units['M']*units['T']**2/units['L']**3
 	#Potential of BH
-	dist = np.linalg.norm( coordinates - datafile['PartType5']['Coordinates'][0], axis=1 )
-	potBH = -GCl*datafile['PartType5']['Masses'][0]/dist
+	dist = np.linalg.norm( coordinates - datafile['PartType5']['Coordinates'][-1], axis=1 )
+	potBH = -GCl*datafile['PartType5']['Masses'][-1]/dist
 	#Reading information of minimum of potential
 	i_min = np.argsort( potential - potBH )[0]
 	r_mp = coordinates[i_min]
@@ -78,7 +78,7 @@ def snapshot_reader( datafolder, simulation, snap, snapbase = 'snapshot', partty
     id_bound = np.argsort( potential )[0]
     
     try:
-	return np.array(coordinates), np.array(potential), id_bound, r_mp, datafile['PartType5']['Coordinates'][0]
+	return np.array(coordinates), np.array(potential), id_bound, r_mp, datafile['PartType5']['Coordinates'][-1]
     except:
 	return np.array(coordinates), np.array(potential), id_bound, r_mp, []
   
@@ -306,16 +306,16 @@ class black_hole_sim(object):
 	for i in xrange( self.n_snap ):
 	    datafile = h5py.File(filename(i), 'r')
 	    #Calculating potential vector due to central BH
-	    dist = np.linalg.norm( datafile['PartType1']['Coordinates'] - datafile['PartType5']['Coordinates'][0], axis=1 )
-	    potBH = -self.GC*datafile['PartType5']['Masses'][0]/dist
+	    dist = np.linalg.norm( datafile['PartType1']['Coordinates'] - datafile['PartType5']['Coordinates'][-1], axis=1 )
+	    potBH = -self.GC*datafile['PartType5']['Masses'][-1]/dist
 	    
 	    #Reading information of minimum of potential
 	    i_min = np.argsort( datafile['PartType1']['Potential'] + total_energy*0.5*np.linalg.norm(datafile['PartType1']['Velocities'], axis=1) - potBH )[0]
 	    self.r_mp.append( datafile['PartType1']['Coordinates'][i_min] - self.center )
 	    self.v_mp.append( datafile['PartType1']['Velocities'][i_min] )
 	    #Reading information of black hole trajectory
-	    self.r.append( datafile['PartType5']['Coordinates'][0] - self.center )
-	    self.v.append( datafile['PartType5']['Velocities'][0] )
+	    self.r.append( datafile['PartType5']['Coordinates'][-1] - self.center )
+	    self.v.append( datafile['PartType5']['Velocities'][-1] )
 	    self.t.append( datafile['Header'].attrs['Time'] )
 
 	self.r = np.array( self.r )
