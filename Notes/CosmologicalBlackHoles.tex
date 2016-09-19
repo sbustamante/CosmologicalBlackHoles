@@ -84,8 +84,10 @@ can be then derived from the previous expressions, yielding:
 which can be integrated to obtain the final evolution equation \citep{Bardeen1970}:
 
 \begin{eqnarray}
+\label{eq:SpinEvol}
 a^f  & = & \frac{1}{3}\hat{r}_{lso}^{1/2}\frac{M_{bh}}{M^f_{bh}}\left[ 4 - \left\{ 3\hat{r}_{lso}\left(\frac{M_{bh}}{M^f_{bh}}\right)^2 - 2 \right\}^{1/2} \right],
     \ \ \ \ \frac{M^f_{bh}}{M_{bh}} \leq \hat{r}_{lso}^{1/2} \\
+\nonumber
 a^f  & = & 0.998, \ \ \ \ \frac{M^f_{bh}}{M_{bh}} > \hat{r}_{lso}^{1/2}
 \end{eqnarray}
 
@@ -123,7 +125,7 @@ Using \ref{eq:TotalJ}, the angle $\theta$ satisfies the next equation:
 or
 
 \eq{ThetaEvol}
-{ \cos\theta = \frac{J^2_{tot} - J^2_{bh} - J^2_{d}}{2J_{bh}J_{d}} }
+{ \cos\theta = \frac{J^2_{tot}}{2J_{bh}J_{d}} }
 
 In the same way, for $\theta^t$:
 
@@ -212,34 +214,96 @@ Using the expressions for the Schwarzschild and warp radius, we obtain
 \[ \frac{J_d}{2J_{bh}} = 10^{-9} \lambda \left( \frac{t_{\nu_1}}{1\ yr} \right) \left( \frac{R_{warp}}{R_{Schw}} \right)^{1/2}
 a^{-1}\]
 
-\subsubsection{Numerical implementation}
+\subsubsection{Self-graviting disks}
+
+Following the argument of \citet{King2008}, the accretion disk will become self-gravitating at a
+radius $R_{sg}$ and for a given accretion episode, the amount of mass that can be accreted is thus 
+limited to $M_{sg} \sim (H/R) M_{bh}$, where $H$ and $R$ are the characteristic height and radial 
+scales of the disk. The accretion episodes are randomly oriented, meaning that the infalling 
+material feeding the BH does not have a preferred direction, unlike the prolonged accretion mode. 
+This, along with the fact that usually $M_{sg}\ll M_d$, makes the spin distribution broader as the 
+BHs are not always aligned and the accreted mass per episode is rather small. In the case of a 
+Shakura-Sunyaev, the mass inside the non-self-gravitating region $M_{sg}$ is given by:
+
+\eq{MassChaotic}
+{ M_{sg} = \frac{H}{R}M_{bh} = 2.13 \times 10^5 \epsilon^{-5/27} \left( \frac{M_{bh}}{10^8 M_{\odot}} \right)^{23/27} 
+\lambda^{5/27} \alpha^{-2/17} M_{\odot} }
+
+
+%--------------------------------------------------------------------------------------------------
+\subsection{Numerical implementation of gas accretion}
+%--------------------------------------------------------------------------------------------------
 
 The previous formulation of disk accretion by \citet{Fanidakis2011} was based on semi-analytical 
 models of galaxy formation, where halos are tracked in the Millenium N-body simulation. Therefore, 
 the accretion rate and the total mass budget to feed a BH were estimated semi-analytically from
-merger histories. Here instead, we couple in a self-consistent way the spin evolution and the 
+merger histories. Instead of this, we couple in a self-consistent way the spin evolution and the 
 numerical outputs for the accretion rate and accreted mass in the AREPO code. The following steps
 are followed in the code:
 
-\begin{enumerate}
- \item In cosmological setups, when a fof halo reaches a threshold mass $M_{th}$, a BH is seeded in
- the potential minimum. We initialize the spin of the BH with an initial value $a_{bh,0}$ in a
- random direction. For non-cosmological setups, in the first time-step, the spin of every BH is also
- initialize in the same way. We adopt a conservative value of $a_{bh,0} = 0$, however we will explore
- different choices.
+\begin{itemize}
+
+ \item[\textbf{1.}] In cosmological setups, when a fof halo reaches a threshold mass $M_{th}$, a 
+ BH is seeded in the potential minimum. We initialize the spin of the BH with an initial value 
+ $a_{bh,0}$ in a random direction. For non-cosmological setups, in the first time-step, the spin 
+ of every BH is also initialize in the same way. We adopt a conservative value of $a_{bh,0} = 0$, 
+ however we will explore different choices.
  
- \item Using the BH mass $M_{bh}$, we proceed to calculate the quantities $R_{warp}$, $M_d(R_{warp})$
- and the angular momentum of the disk $J_d(R_{warp})$.
+ \item[\textbf{2.}] The accretion rate is checked. If $\dot{m} \geq 0.1$, we proceed to the next 
+ step, otherwise, the accreted gas is not enough to change appreciably the spin, and the spin is 
+ kept constant until $\dot{m} \geq 0.1$.
  
- \item A normal vector is drawn for the plane of the accretion disk. This can be done either by 
- randomly draw a vector or by using a parallel vector to the angular momentum of the gas cells used 
- to compute the local density around the BH. This way, we get the initial angles $\theta$ and 
- $\theta^t$. The total angular momentum $\bds J_{tot}$ is also computed in this step, and is kept
- constant during the whole accretion episode.
+ \item[\textbf{3.}] We check on the current accretion mode of the BH. In order to do so, we adopt 
+ the mass-dependent criterion proposed by \citet{Weinberger2016}:
  
+ \eq{AccretionModeCrit}
+ { \chi = \min \left[ \chi_0 \left( \frac{M_{bh}}{10^8 M_{\odot}} \right)^\beta, 0.1 \right] }
+ 
+ where $\chi$ is the fraction of the Eddington accretion rate below which a BH is in the radio/kinetic 
+ mode. For this case, we adopt the prolonged spin model, where the disk remembers the alignment 
+ conditions after every accretion episode. If the accretion rate is instead above $\chi$, the BH is 
+ in the radiative/quasar mode. In this mode, the amount of accreted mass is large enough such that 
+ self-gravity effects on the disk become significant, making more reasonable to adopt the chaotic 
+ spin model, where a different random direction is drawn for the disk after each accretion episode.
+ In the code, it is also possible to adopt only one of the models for all the BHs, irrespectively of
+ the accretion mode.
+ 
+ \item[(\textbf{4.})] For any chaotic episode or for the first prolonged episode, a normal vector is 
+ drawn for the plane of the accretion disk. This can be done either by randomly draw a vector or by 
+ using a parallel vector to the angular momentum of the gas cells used to compute the local density 
+ around the BH. This way, we get the initial angles $\theta$ and $\theta^t$. The total angular 
+ momentum $\bds J_{tot}$ is also computed in this step, and is kept constant during the whole 
+ accretion episode.
+ 
+ \item[\textbf{5.}] Using the BH mass $M_{bh}$, we estimate the accretion timescale $t_{\nu_1}$ 
+ (equation \ref{eq:AccTimeWarp}), which is taken as the time needed for the current accretion episode
+ to occur. A counter is set over the internal time and once $t_{\nu_1}$ is reached, we proceed 
+ to evolve the spin properties.
+
+ \subsubsection*{Prolonged spin model}
+ 
+ \item[\textbf{6.}] For the prolonged mode, the quantities $R_{warp}$, $M_d(R_{warp}) = \bar{\dot{M}}
+ t_{\nu_1}$, the angular momentum of the disk $J_d(R_{warp})$ and the new spin parameter $a^f$ are 
+ calculated at the end of the current episode, where $M_{bh}^f$ is taken as the final BH mass. Using 
+ equations \ref{eq:ThetaEvol} and \ref{eq:ThetatEvol} we estimate the angles $\theta$ and $\theta_t$ 
+ and the new orientations for the spin and the disk. We then proceed to step \textbf{2} for the next 
+ accretion episode.
+
+ \subsubsection*{Chaotic spin model}
+ 
+ \item[\textbf{6.}] For the chaotic mode, we subdivide the current accretion episode in $N \approx 
+ \Delta M / M_{sg} $ sub-episodes, where $\Delta M = M_{bh}^f - M_{bh}$, after each of which we 
+ evolve the spin with equation \ref{eq:SpinEvol}, but using as final BH mass $M_{bh} + i\times M_{sg}$ 
+ instead of $M_{bh}^f$, with $i$ the number of the current sub-episode. This is repeated until the 
+ available mass $\Delta M$ is depleted, in which case we proceed to the next accretion episode in 
+ step \textbf{2}. \footnote{ The subdivision of sub-episodes in the chaotic mode is artificial as 
+ physically they are all independent. However, it is numerically more convenient to follow this 
+ approach as we know that the mass accreted by the BH in a time $t_{\nu_1}$ will be necessarily 
+ greater than any value of $M_{sg}$, this way we do not have to deal with subdividing internal 
+ timesteps in the code.}
 
 
-\end{enumerate}
+\end{itemize}
 
 
 
@@ -352,7 +416,7 @@ facilitates the numerical implementation, namely:
  are split up in two two-BHs mergers.
  \item The two BHs will merge once they are closer than the minimum of the softening lengths used to 
  compute the gas density for each BH.
- \item They will merge irrespectevely of their approach velocity. Usually, a criterion based on the
+ \item They will merge irrespectively of their approach velocity. Usually, a criterion based on the
  local speed of sound would provide a more realistic scenario, however, as a first-order estimative,
  we do not apply this.
  \item The reference system used in the estimation of the kick velocity is built based on the
