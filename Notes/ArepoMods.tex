@@ -1,0 +1,42 @@
+\documentclass[a4,useAMS,usenatbib,usegraphicx,12pt]{article}
+%External Packages and personalized macros
+\include{latex/macros}
+ 
+\title{Modifications in AREPO}
+\author{Sebastian Bustamante}
+\date{}
+  
+\begin{document}
+\maketitle
+%\tableofcontents 
+%\newpage 
+
+%==================================================================================================
+\section*{blackhole\_mergers.c}
+%==================================================================================================
+
+\begin{itemize}
+ \item \textbf{41:} including definition of variables pos and vel for structure with accreted BHs.
+ \item \textbf{202:} sending properties of accreted BHs (same node).
+ \item \textbf{240:} sending properties of accreted BHs (different nodes).
+ \item \textbf{352:} routines to apply merger recoil kick.
+ \item \textbf{736:} applying recoil kick and updating position of remnant to the centre of mass 
+ of the binary
+ \item \textbf{750:} adding recoil kick to remnant
+ \item \textbf{904:} storing properties of accreted BHs (same node).
+ \item \textbf{1016:} storing properties of accreted BHs (different nodes).
+\end{itemize}
+
+
+%==================================================================================================
+\section*{parameters.c}
+%==================================================================================================
+
+\begin{itemize}
+ \item \textbf{41:} 
+\end{itemize}
+
+
+
+
+\end{document}
