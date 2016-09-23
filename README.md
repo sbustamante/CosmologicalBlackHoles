@@ -10,3 +10,5 @@ Cosmological predictions for supermassive black hole mergers
 - [Minimum Finder:](http://nbviewer.ipython.org/github/sbustamante/CosmologicalBlackHoles/blob/master/Codes/minimum_finder.ipynb?flush_cache=true) analysis of method to find minimum of a galaxy.
 
 - [Gravitational kick:](http://nbviewer.ipython.org/github/sbustamante/CosmologicalBlackHoles/blob/master/Codes/kick_merger.ipynb?flush_cache=true) gravitational kick of merging BHs.
+
+- [Spin evolution:](http://nbviewer.ipython.org/github/sbustamante/CosmologicalBlackHoles/blob/master/Codes/spin_evolution.ipynb?flush_cache=true) spin evolution of SMBHs.
