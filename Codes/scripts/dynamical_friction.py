@@ -9,6 +9,7 @@
 import numpy as np
 from scipy import integrate as integ
 from scipy.optimize import curve_fit
+from scipy.interpolate import interp1d
 import h5py
 
 try:
@@ -21,6 +22,20 @@ except:
 #========================================================================================
 #Cavendish constant [SI]
 GC	=	6.67384e-11
+#Light speed
+CLIGHT	=	2.99792458e8
+#Proton Mass
+PROTONMASS =    1.67262178e-27
+#Thomson constant
+THOMPSON =      6.65245873e-29
+#1e8 Solar units
+E8MSUN = 	1.989e38
+#Seconds per year
+SECPERYEAR =    3.15569e7
+#Solar mass
+SOLARMASS =     1.989e30
+
+
 #Standard units
 unitsstd = {'M':1.989e40, 'L':3.08568e19, 'T':3.15569e16, 'V':1000. }
 
@@ -70,8 +85,8 @@ def snapshot_reader( datafolder, simulation, snap, snapbase = 'snapshot', partty
         #Units
 	GCl = GC*units['M']*units['T']**2/units['L']**3
 	#Potential of BH
-	dist = np.linalg.norm( coordinates - datafile['PartType5']['Coordinates'][-1], axis=1 )
-	potBH = -GCl*datafile['PartType5']['Masses'][-1]/dist
+	dist = np.linalg.norm( coordinates - datafile['PartType5']['Coordinates'][0], axis=1 )
+	potBH = -GCl*datafile['PartType5']['Masses'][0]/dist
 	#Reading information of minimum of potential
 	i_min = np.argsort( potential - potBH )[0]
 	r_mp = coordinates[i_min]
@@ -81,7 +96,7 @@ def snapshot_reader( datafolder, simulation, snap, snapbase = 'snapshot', partty
     id_bound = np.argsort( potential )[0]
     
     try:
-	return np.array(coordinates), np.array(potential), id_bound, r_mp, datafile['PartType5']['Coordinates'][-1]
+	return np.array(coordinates), np.array(potential), id_bound, r_mp, datafile['PartType5']['Coordinates'][0]
     except:
 	return np.array(coordinates), np.array(potential), id_bound, r_mp, []
   
@@ -307,22 +322,27 @@ class black_hole_sim(object):
 	self.v_mp = []
 	self.t = []
 	self.a = []
+	self.mbh = []
+	self.mbh_dot = []
 	for i in xrange( self.n_snap ):
 	    datafile = h5py.File(filename(i), 'r')
 	    #Calculating potential vector due to central BH
-	    dist = np.linalg.norm( datafile['PartType1']['Coordinates'] - datafile['PartType5']['Coordinates'][-1], axis=1 )
-	    potBH = -self.GC*datafile['PartType5']['Masses'][-1]/dist
+	    dist = np.linalg.norm( datafile['PartType1']['Coordinates'] - datafile['PartType5']['Coordinates'][0], axis=1 )
+	    potBH = -self.GC*datafile['PartType5']['Masses'][0]/dist
 	    
 	    #Reading information of minimum of potential
 	    i_min = np.argsort( datafile['PartType1']['Potential'] + total_energy*0.5*np.linalg.norm(datafile['PartType1']['Velocities'], axis=1) - potBH )[0]
 	    self.r_mp.append( datafile['PartType1']['Coordinates'][i_min] - self.center )
 	    self.v_mp.append( datafile['PartType1']['Velocities'][i_min] )
 	    #Reading information of black hole trajectory
-	    self.r.append( datafile['PartType5']['Coordinates'][-1] - self.center )
-	    self.v.append( datafile['PartType5']['Velocities'][-1] )
+	    self.r.append( datafile['PartType5']['Coordinates'][0] - self.center )
+	    self.v.append( datafile['PartType5']['Velocities'][0] )
 	    self.t.append( datafile['Header'].attrs['Time'] )
+	    self.mbh.append( datafile['PartType5']['BH_Mass'][0] )
+	    self.mbh_dot.append( datafile['PartType5']['BH_Mdot'][0] )
+
 	    try:
-		self.a.append( datafile['PartType5'].attrs['BH_SpinParameter'] )
+		self.a.append( datafile['PartType5']['BH_SpinParameter'][0] )
 	    except:
 		self.a.append( 0 )
 
@@ -365,7 +385,8 @@ class black_hole_sim(object):
 	self.r[:,0], self.r[:,1], self.r[:,2], self.rm,
 	self.v[:,0], self.v[:,1], self.v[:,2], self.vm,
 	self.r_mp[:,0], self.r_mp[:,1], self.r_mp[:,2], self.rm_mp,
-	self.v_mp[:,0], self.v_mp[:,1], self.v_mp[:,2], self.vm_mp, self.a ] )
+	self.v_mp[:,0], self.v_mp[:,1], self.v_mp[:,2], self.vm_mp, 
+	self.a, self.mbh, self.mbh_dot ] )
 	
 	np.savetxt( "%s/BH_%s.dat"%(self.resultsfolder, self.simulation), data )
 	
@@ -384,7 +405,13 @@ class black_hole_sim(object):
 	self.rm_mp = data[:,12]
 	self.v_mp = data[:,[13,14,15]]
 	self.vm_mp = data[:,16]
-	self.a = data[:,17]
+	
+	try:
+	    self.a = data[:,17]
+	    self.mbh = data[:,18]
+	    self.mbh_dot = data[:,19]
+	except:
+	    None
 	
 	try:
 	    self.r_mp_fit = np.loadtxt( "%s/BH_%s_fit_%1.3f.dat"%(self.resultsfolder, self.simulation, Distance) )
@@ -502,3 +529,88 @@ class black_hole_sim(object):
 	    
 	self.r_mp_fit = np.array( self.r_mp_fit )
 	np.savetxt( "%s/BH_%s_3Dfit.dat"%(self.resultsfolder, self.simulation), self.r_mp_fit )
+
+#........................................................................................
+#		SPIN_EVOLUTION
+#........................................................................................
+    def m_dot_eddignton( self, Mbh, rad_eff = 0.1 ):
+	return (4*np.pi*GC*CLIGHT*PROTONMASS/(rad_eff*CLIGHT**2*THOMPSON))*Mbh*self.units['T']
+      
+    def spin_parameter_evolution( self, Mbh0, Mbhf, a0 ):
+	Z1 = 1 + (1-a0**2)**(1/3.0)*( (1+a0)**(1/3.0) + (1-a0)**(1/3.0) )
+	Z2 = ( 3*a0**2 + Z1**2 )**(0.5)
+	Rlso = 3 + Z2 - abs(a0)/a0*( (3-Z1)*(3+Z1+2*Z2) )**(0.5)
+      
+	if Mbhf/Mbh0 > Rlso**0.5:
+	    return 0.998
+	else:
+	    return (1/3.0)*Rlso**0.5*(Mbh0/Mbhf)*( 4 - (3*Rlso*(Mbh0/Mbhf)**2 - 2)**0.5 )
+      
+      
+    def spin_evolution( self, mode='continuous', rad_eff = 0.1, alpha = 0.1, a0 = 0.5 ):
+	"""
+	Spin evolution function
+	
+	Required arguments
+	------------------------
+	mode: mode for spin evolution. It can be either 'continuous' or 'chaotic'.
+	rad_eff: radiative efficiency of the disk
+	alpha: Shakura-Sunyaev parameter
+	a0: initial spin parameter
+	"""
+	#Disk properties
+	self.rad_eff = rad_eff
+	self.alpha = alpha
+	
+	#Interpolating functions of mass and m_dot
+	self.Mbh = interp1d( self.t, self.mbh )
+	self.Mbh_dot = interp1d( self.t, self.mbh_dot )
+	Mbh_inv = interp1d( self.mbh, self.t )
+	
+	#Iterating in time
+	aps = []
+	tms = []
+	t = 0
+	a = a0
+	i = 0
+	while t < self.t[-1] and i<5000:
+	  #Properties at this time
+	  lambd = self.Mbh_dot(t)/self.m_dot_eddignton( self.Mbh(t), self.rad_eff )
+	  mass = self.Mbh(t)*self.units['M']/E8MSUN
+	  time_acc = 3e6*abs(a)**(7/8.)*mass**(11/8.)*lambd**(-3/4.)*self.alpha**(1/4.)*SECPERYEAR/self.units['T']
+	  Mself = 2.13e5*(self.rad_eff/lambd)**(-5/27.)*mass**(23/27.)*self.alpha**(-2/17.)*SOLARMASS/self.units['M']
+	  #Storing properties
+	  aps.append( a )
+	  tms.append( t )
+	  i += 1
+	  if lambd >= 0.01:
+	      if mode == 'continuous':
+		  try:
+		      a = self.spin_parameter_evolution( self.Mbh(t), self.Mbh(t + time_acc), a )
+		      t = t + time_acc
+		  except:
+		      break
+	      if mode == 'chaotic':
+		  try:
+		      Jb = a*mass**2
+		      Jd = 3.6*abs(a)**(19/16.)*mass**(55/16.)*lambd**(1/8.)*self.alpha**(5/8.)
+
+		      if np.random.random()<np.min( (abs(0.5*(1 - 0.5*Jd/Jb)),0.5) ):
+			  a = -self.spin_parameter_evolution( self.Mbh(t), self.Mbh(t) + Mself, -a )
+		      else:
+			  a = self.spin_parameter_evolution( self.Mbh(t), self.Mbh(t) + Mself, a )
+		      t = Mbh_inv( self.Mbh(t) + Mself )
+		      #print self.Mbh(t), Mself, Mbh_inv( self.Mbh(t) + Mself ), t
+		  except:
+		      break
+	self.aps = np.array(aps)
+	self.tms = np.array(tms)
+	      
+		
+	      
+	      
+
+	
+	
+      
+      
