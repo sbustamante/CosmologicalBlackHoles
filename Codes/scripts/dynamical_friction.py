@@ -10,6 +10,7 @@ import numpy as np
 from scipy import integrate as integ
 from scipy.optimize import curve_fit
 from scipy.interpolate import interp1d
+from astropy.cosmology import WMAP9
 import h5py
 
 try:
@@ -39,6 +40,12 @@ SOLARMASS =     1.989e30
 #Standard units
 unitsstd = {'M':1.989e40, 'L':3.08568e19, 'T':3.15569e16, 'V':1000. }
 
+#Creating time for cosmological setups
+atmp = np.arange( 0.001, 1.02, 0.001)
+t_tmp = WMAP9.lookback_time(1.0/atmp[0] - 1) - WMAP9.lookback_time( 1.0/atmp - 1 )
+def physical_time( a ):
+    time = np.interp( a, atmp, t_tmp)
+    return time
 
 #========================================================================================
 #		FUNCTIONS
@@ -296,13 +303,14 @@ class black_hole_sim(object):
 	   Default: M [1e10 Msun]  L [kpc]  T [Gyr]  V [km/s]
     kargs : extra arguments
     """
-    def __init__( self, simulation, snapbase, n_snap, datafolder, resultsfolder, center = [0,0,0], units = unitsstd, kargs={} ):
+    def __init__( self, simulation, snapbase, n_snap, datafolder, resultsfolder, center = [0,0,0], comoving = False, units = unitsstd, kargs={} ):
 	self.simulation = simulation
 	self.snapbase = snapbase
 	self.n_snap = n_snap
 	self.datafolder = datafolder
 	self.resultsfolder = resultsfolder
 	
+	self.comoving = comoving
 	self.center = np.array(center)	
 	self.units = units
 	self.kargs = kargs
@@ -326,6 +334,13 @@ class black_hole_sim(object):
 	self.mbh_dot = []
 	for i in xrange( self.n_snap ):
 	    datafile = h5py.File(filename(i), 'r')
+	    
+	    #Time
+	    if self.comoving:
+		self.t.append( physical_time(datafile['Header'].attrs['Time']) )
+	    else:
+		self.t.append( datafile['Header'].attrs['Time'] )
+		
 	    #Calculating potential vector due to central BH
 	    dist = np.linalg.norm( datafile['PartType1']['Coordinates'] - datafile['PartType5']['Coordinates'][0], axis=1 )
 	    potBH = -self.GC*datafile['PartType5']['Masses'][0]/dist
@@ -337,7 +352,7 @@ class black_hole_sim(object):
 	    #Reading information of black hole trajectory
 	    self.r.append( datafile['PartType5']['Coordinates'][0] - self.center )
 	    self.v.append( datafile['PartType5']['Velocities'][0] )
-	    self.t.append( datafile['Header'].attrs['Time'] )
+	    
 	    self.mbh.append( datafile['PartType5']['BH_Mass'][0] )
 	    self.mbh_dot.append( datafile['PartType5']['BH_Mdot'][0] )
 
@@ -357,6 +372,8 @@ class black_hole_sim(object):
 	self.vm_mp = np.linalg.norm( self.v_mp, axis=1 )
 	#Reading spin	
 	self.a = np.array( self.a )
+	self.mbh = np.array( self.mbh )
+	self.mbh_dot = np.array( self.mbh_dot )
 	
 	self.t = np.array(self.t)
 	#Centralizing trajectory
@@ -570,7 +587,7 @@ class black_hole_sim(object):
 	#Iterating in time
 	aps = []
 	tms = []
-	t = 0
+	t = self.t[0]
 	a = a0
 	i = 0
 	while t < self.t[-1] and i<5000:
@@ -587,30 +604,30 @@ class black_hole_sim(object):
 	      if mode == 'continuous':
 		  try:
 		      a = self.spin_parameter_evolution( self.Mbh(t), self.Mbh(t + time_acc), a )
-		      t = t + time_acc
+		      if self.Mbh(t) == 0:
+			  t = t + time_acc
+		      else:
+			  t = t*(1+0.001)
 		  except:
 		      break
 	      if mode == 'chaotic':
 		  try:
 		      Jb = a*mass**2
 		      Jd = 3.6*abs(a)**(19/16.)*mass**(55/16.)*lambd**(1/8.)*self.alpha**(5/8.)
-
-		      if np.random.random()<np.min( (abs(0.5*(1 - 0.5*Jd/Jb)),0.5) ):
+		      
+		      if np.random.random()<(0.5*(1 - 0.5*Jd/Jb)):#np.min( (abs(0.5*(1 - 0.5*Jd/Jb)),0.5) ):
 			  a = -self.spin_parameter_evolution( self.Mbh(t), self.Mbh(t) + Mself, -a )
 		      else:
 			  a = self.spin_parameter_evolution( self.Mbh(t), self.Mbh(t) + Mself, a )
-		      t = Mbh_inv( self.Mbh(t) + Mself )
-		      #print self.Mbh(t), Mself, Mbh_inv( self.Mbh(t) + Mself ), t
+			  
+		      if self.Mbh(t) == 0:
+			  t = Mbh_inv( self.Mbh(t) + Mself )
+		      else:
+			  t = t*(1+0.001)
 		  except:
 		      break
+	  else:
+	      t = t+0.001*self.t[-1]
 	self.aps = np.array(aps)
 	self.tms = np.array(tms)
 	      
-		
-	      
-	      
-
-	
-	
-      
-      
