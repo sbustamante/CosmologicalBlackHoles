@@ -330,6 +330,7 @@ class black_hole_sim(object):
 	self.v_mp = []
 	self.t = []
 	self.a = []
+	self.adir = []
 	self.mbh = []
 	self.mbh_dot = []
 	for i in xrange( self.n_snap ):
@@ -358,8 +359,10 @@ class black_hole_sim(object):
 
 	    try:
 		self.a.append( datafile['PartType5']['BH_SpinParameter'][0] )
+		self.adir.append( datafile['PartType5']['BH_SpinOrientation'] )
 	    except:
 		self.a.append( 0 )
+		self.adir.append( [0,0,0] )
 
 	self.r = np.array( self.r )
 	self.rm = np.linalg.norm( self.r, axis=1 )
@@ -372,6 +375,8 @@ class black_hole_sim(object):
 	self.vm_mp = np.linalg.norm( self.v_mp, axis=1 )
 	#Reading spin	
 	self.a = np.array( self.a )
+	self.adir = np.array( self.adir )
+	self.adir = self.adir[:,0]
 	self.mbh = np.array( self.mbh )
 	self.mbh_dot = np.array( self.mbh_dot )
 	
@@ -403,7 +408,8 @@ class black_hole_sim(object):
 	self.v[:,0], self.v[:,1], self.v[:,2], self.vm,
 	self.r_mp[:,0], self.r_mp[:,1], self.r_mp[:,2], self.rm_mp,
 	self.v_mp[:,0], self.v_mp[:,1], self.v_mp[:,2], self.vm_mp, 
-	self.a, self.mbh, self.mbh_dot ] )
+	self.a, self.mbh, self.mbh_dot,
+	self.adir[:,0], self.adir[:,1], self.adir[:,2]] )
 	
 	np.savetxt( "%s/BH_%s.dat"%(self.resultsfolder, self.simulation), data )
 	
@@ -427,6 +433,7 @@ class black_hole_sim(object):
 	    self.a = data[:,17]
 	    self.mbh = data[:,18]
 	    self.mbh_dot = data[:,19]
+	    self.adir = data[:,[20,21,22]]
 	except:
 	    None
 	
@@ -590,7 +597,7 @@ class black_hole_sim(object):
 	t = self.t[0]
 	a = a0
 	i = 0
-	while t < self.t[-1] and i<5000:
+	while t < self.t[-1] and i<50000:
 	  #Properties at this time
 	  lambd = self.Mbh_dot(t)/self.m_dot_eddignton( self.Mbh(t), self.rad_eff )
 	  mass = self.Mbh(t)*self.units['M']/E8MSUN
@@ -600,14 +607,14 @@ class black_hole_sim(object):
 	  aps.append( a )
 	  tms.append( t )
 	  i += 1
-	  if lambd >= 0.01:
+	  if lambd >= 0.001:
 	      if mode == 'continuous':
 		  try:
 		      a = self.spin_parameter_evolution( self.Mbh(t), self.Mbh(t + time_acc), a )
-		      if self.Mbh(t) == 0:
+		      if self.Mbh(t) != 0:
 			  t = t + time_acc
 		      else:
-			  t = t*(1+0.001)
+			  t = t+0.001*self.t[-1]
 		  except:
 		      break
 	      if mode == 'chaotic':
@@ -620,10 +627,10 @@ class black_hole_sim(object):
 		      else:
 			  a = self.spin_parameter_evolution( self.Mbh(t), self.Mbh(t) + Mself, a )
 			  
-		      if self.Mbh(t) == 0:
+		      if self.Mbh(t) != 0:
 			  t = Mbh_inv( self.Mbh(t) + Mself )
 		      else:
-			  t = t*(1+0.001)
+			  t = t+0.001*self.t[-1]
 		  except:
 		      break
 	  else:
