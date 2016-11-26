@@ -333,6 +333,11 @@ class black_hole_sim(object):
 	self.adir = []
 	self.mbh = []
 	self.mbh_dot = []
+	
+	#Reference Index
+        datafile0 = h5py.File(filename(0), 'r')
+        IDs = datafile0['PartType5']['ParticleIDs']
+        
 	for i in xrange( self.n_snap ):
 	    datafile = h5py.File(filename(i), 'r')
 	    
@@ -342,24 +347,34 @@ class black_hole_sim(object):
 	    else:
 		self.t.append( datafile['Header'].attrs['Time'] )
 		
+	    if len(datafile['PartType5']['ParticleIDs'])>1:
+		mask_ID1 = np.array(datafile['PartType5']['ParticleIDs']) == IDs[1]               
+		_, mask_ID1_3D = np.broadcast_arrays(datafile['PartType5']['Coordinates'], mask_ID1[...,None])
+		if sum(mask_ID1)==0:
+		    mask_ID1 = 0  
+		    mask_ID1_3D = 0
+	    else:
+		mask_ID1 = 0
+		mask_ID1_3D = 0
+		
 	    #Calculating potential vector due to central BH
-	    dist = np.linalg.norm( datafile['PartType1']['Coordinates'] - datafile['PartType5']['Coordinates'][0], axis=1 )
-	    potBH = -self.GC*datafile['PartType5']['Masses'][0]/dist
+	    dist = np.linalg.norm( datafile['PartType1']['Coordinates'] - datafile['PartType5']['Coordinates'][mask_ID1_3D], axis=1 )
+	    potBH = -self.GC*datafile['PartType5']['Masses'][mask_ID1]/dist
 	    
 	    #Reading information of minimum of potential
 	    i_min = np.argsort( datafile['PartType1']['Potential'] + total_energy*0.5*np.linalg.norm(datafile['PartType1']['Velocities'], axis=1) - potBH )[0]
 	    self.r_mp.append( datafile['PartType1']['Coordinates'][i_min] - self.center )
 	    self.v_mp.append( datafile['PartType1']['Velocities'][i_min] )
 	    #Reading information of black hole trajectory
-	    self.r.append( datafile['PartType5']['Coordinates'][0] - self.center )
-	    self.v.append( datafile['PartType5']['Velocities'][0] )
+	    self.r.append( datafile['PartType5']['Coordinates'][mask_ID1_3D] - self.center )
+	    self.v.append( datafile['PartType5']['Velocities'][mask_ID1_3D] )
 	    
-	    self.mbh.append( datafile['PartType5']['BH_Mass'][0] )
-	    self.mbh_dot.append( datafile['PartType5']['BH_Mdot'][0] )
+	    self.mbh.append( datafile['PartType5']['BH_Mass'][mask_ID1] )
+	    self.mbh_dot.append( datafile['PartType5']['BH_Mdot'][mask_ID1] )
 
 	    try:
-		self.a.append( datafile['PartType5']['BH_SpinParameter'][0] )
-		self.adir.append( datafile['PartType5']['BH_SpinOrientation'] )
+		self.a.append( datafile['PartType5']['BH_SpinParameter'][mask_ID1] )
+		self.adir.append( np.array(datafile['PartType5']['BH_SpinOrientation'][mask_ID1_3D]) )
 	    except:
 		self.a.append( 0 )
 		self.adir.append( [0,0,0] )
@@ -376,7 +391,6 @@ class black_hole_sim(object):
 	#Reading spin	
 	self.a = np.array( self.a )
 	self.adir = np.array( self.adir )
-	self.adir = self.adir[:,0]
 	self.mbh = np.array( self.mbh )
 	self.mbh_dot = np.array( self.mbh_dot )
 	
