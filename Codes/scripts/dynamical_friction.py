@@ -608,23 +608,28 @@ class black_hole_sim(object):
 	#Iterating in time
 	aps = []
 	tms = []
+	dms = []
 	t = self.t[0]
 	a = a0
 	i = 0
+	dm = 0
 	while t < self.t[-1] and i<50000:
 	  #Properties at this time
 	  lambd = self.Mbh_dot(t)/self.m_dot_eddignton( self.Mbh(t), self.rad_eff )
 	  mass = self.Mbh(t)*self.units['M']/E8MSUN
 	  time_acc = 3e6*abs(a)**(7/8.)*mass**(11/8.)*lambd**(-3/4.)*self.alpha**(1/4.)*SECPERYEAR/self.units['T']
 	  Mself = 2.13e5*(self.rad_eff/lambd)**(-5/27.)*mass**(23/27.)*self.alpha**(-2/17.)*SOLARMASS/self.units['M']
+	  Rself = 1.5e3*(self.rad_eff/lambd)**(8/27.)*mass**(-26/27.)*self.alpha**(14/27.)
 	  #Storing properties
 	  aps.append( a )
 	  tms.append( t )
+	  dms.append( dm )
 	  i += 1
 	  if lambd >= 0.001:
 	      if mode == 'continuous':
 		  try:
 		      a = self.spin_parameter_evolution( self.Mbh(t), self.Mbh(t + time_acc), a )
+		      dm = self.Mbh(t + time_acc)-self.Mbh(t)
 		      if self.Mbh(t) != 0:
 			  t = t + time_acc
 		      else:
@@ -635,6 +640,8 @@ class black_hole_sim(object):
 		  try:
 		      Jb = a*mass**2
 		      Jd = 3.6*abs(a)**(19/16.)*mass**(55/16.)*lambd**(1/8.)*self.alpha**(5/8.)
+		      Jd = mass*Mself*Rself**0.5
+		      dm = Mself
 		      
 		      if np.random.random()<(0.5*(1 - 0.5*Jd/Jb)):#np.min( (abs(0.5*(1 - 0.5*Jd/Jb)),0.5) ):
 			  a = -self.spin_parameter_evolution( self.Mbh(t), self.Mbh(t) + Mself, -a )
@@ -651,4 +658,5 @@ class black_hole_sim(object):
 	      t = t+0.001*self.t[-1]
 	self.aps = np.array(aps)
 	self.tms = np.array(tms)
+	self.dms = np.array(dms)
 	      
