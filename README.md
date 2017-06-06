@@ -1,7 +1,7 @@
 # CosmologicalBlackHoles
 Cosmological predictions for supermassive black hole mergers
 
-- [BH illustris:](http://nbviewer.ipython.org/github/sbustamante/CosmologicalBlackHoles/blob/master/Codes/BH_stats.ipynb?flush_cache=true) analysis of BH in illustris prime test boxes.
+## Orbital evolution
 
 - [DF Simulations:](http://nbviewer.ipython.org/github/sbustamante/CosmologicalBlackHoles/blob/master/Codes/DF_simulations.ipynb?flush_cache=true) a set of experiments for testing behaviour of dynamical friction in the code.
 
@@ -9,6 +9,11 @@ Cosmological predictions for supermassive black hole mergers
 
 - [Minimum Finder:](http://nbviewer.ipython.org/github/sbustamante/CosmologicalBlackHoles/blob/master/Codes/minimum_finder.ipynb?flush_cache=true) analysis of method to find minimum of a galaxy.
 
+## Spin evolution
+
+- [BH illustris:](http://nbviewer.ipython.org/github/sbustamante/CosmologicalBlackHoles/blob/master/Codes/BH_stats.ipynb?flush_cache=true) analysis of BH in illustris prime test boxes.
+
 - [Gravitational kick:](http://nbviewer.ipython.org/github/sbustamante/CosmologicalBlackHoles/blob/master/Codes/kick_merger.ipynb?flush_cache=true) gravitational kick of merging BHs.
 
 - [Spin evolution:](http://nbviewer.ipython.org/github/sbustamante/CosmologicalBlackHoles/blob/master/Codes/spin_evolution.ipynb?flush_cache=true) spin evolution of SMBHs.
+
